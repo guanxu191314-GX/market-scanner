@@ -1,0 +1,29 @@
+name: Daily Market Scan
+
+on:
+  schedule:
+    # Runs at 22:00 UTC (5:00 PM EST - End of US Market) Monday through Friday
+    - cron: '0 22 * * 1-5'
+  workflow_dispatch: # Allows you to run it manually from a button on GitHub
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        
+      - name: Run Market Scan Script
+        env:
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
+          RECEIVER_EMAIL: ${{ secrets.RECEIVER_EMAIL }}
+        run: python market_scan500.py
