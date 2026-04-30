@@ -1,4 +1,4 @@
-name: Daily Market Scan
+name: Daily Market Scan500
 
 on:
   schedule:
