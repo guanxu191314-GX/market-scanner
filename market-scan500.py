@@ -11,16 +11,20 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD") # Must be an App Password
 RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL")
 
-def get_ndx_tickers():
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies#S&P_500_component_stocks'
+def get_sp500_tickers():
+    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36'
     }
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status() 
-        tables = pd.read_html(response.text, match='Ticker')
-        return tables[0]['Ticker'].tolist()
+        # S&P 500 table uses 'Symbol' instead of 'Ticker'
+        tables = pd.read_html(response.text, match='Symbol')
+        tickers = tables[0]['Symbol'].tolist()
+        # Clean tickers for yfinance (e.g., BRK.B -> BRK-B)
+        tickers = [ticker.replace('.', '-') for ticker in tickers]
+        return tickers
     except requests.exceptions.RequestException as e:
         print(f"Error fetching Wikipedia page: {e}")
         return [] 
@@ -56,7 +60,7 @@ def send_email(df_results):
     msg = MIMEMultipart()
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECEIVER_EMAIL
-    msg['Subject'] = "Daily Nasdaq 100 Reversal Pattern Scan"
+    msg['Subject'] = "Daily S&P 500 Reversal Pattern Scan"
 
     if df_results.empty:
         html_content = "<h3>No matching setups found today.</h3>"
@@ -73,7 +77,7 @@ def send_email(df_results):
         <html>
           <head></head>
           <body>
-            <h3>Nasdaq 100 - 3-Candle Pivot Reversals</h3>
+            <h3>S&P 500 - 3-Candle Pivot Reversals</h3>
             <p><strong>Criteria:</strong> Last 40 trading days. Filtered by 5 SMA momentum. Context applied via 60 SMA.</p>
             {html_table}
           </body>
@@ -93,15 +97,15 @@ def send_email(df_results):
         print(f"Failed to send email: {e}")
 
 # --- Main Execution ---
-print("Fetching tickers...")
-tickers = get_ndx_tickers()
+print("Fetching S&P 500 tickers...")
+tickers = get_sp500_tickers()
 if not tickers:
     print("No tickers found. Exiting.")
     exit()
 
 cutoff_date = pd.Timestamp.now().normalize() - pd.Timedelta(days=56)
 results = []
-data = yfinance = yf.download(tickers, period="6mo", group_by="ticker", auto_adjust=False, threads=True)
+data = yf.download(tickers, period="6mo", group_by="ticker", auto_adjust=False, threads=True)
 
 for ticker in tickers:
     try:
