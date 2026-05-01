@@ -2,8 +2,8 @@ name: Daily Market Scan500
 
 on:
   schedule:
-    # Runs at 22:00 UTC (5:00 PM EST - End of US Market) Monday through Friday
-    - cron: '0 22 * * 1-5'
+    # Runs at 21:13 UTC (5:13 PM EDT) Monday through Friday to avoid server congestion
+    - cron: '13 21 * * 1-5'
   workflow_dispatch: # Allows you to run it manually from a button on GitHub
 
 jobs:
