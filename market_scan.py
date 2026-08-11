@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import smtplib
 import os
+from io import StringIO # Required to fix the Pandas warning
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -12,15 +13,18 @@ SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD") # Must be an App Password
 RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL")
 
 def get_ndx_tickers():
-    url = 'https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies'
+    url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36'
     }
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status() 
-        tables = pd.read_html(response.text, match=' Ticker ')
-        return tables[0][' Ticker '].tolist()
+        
+        # FIXED: Wrapped in StringIO and removed the extra spaces around 'Ticker'
+        tables = pd.read_html(StringIO(response.text), match='Ticker')
+        return tables[0]['Ticker'].tolist()
+        
     except requests.exceptions.RequestException as e:
         print(f"Error fetching Wikipedia page: {e}")
         return [] 
@@ -158,7 +162,8 @@ for ticker in tickers:
 
 results_df = pd.DataFrame(results)
 if not results_df.empty:
-    results_df = results_df.sort_values(by=['Date', ' Ticker '], ascending=[False, True]).reset_index(drop=True)
+    # FIXED: Removed extra spaces around 'Ticker' here as well
+    results_df = results_df.sort_values(by=['Date', 'Ticker'], ascending=[False, True]).reset_index(drop=True)
 
 # Print to console (for Action logs) and send email
 print(results_df)
