@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import smtplib
 import os
-from io import StringIO # Required to fix the Pandas warning
+from io import StringIO
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -13,21 +13,60 @@ SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD") # Must be an App Password
 RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL")
 
 def get_ndx_tickers():
-    url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*'
     }
+    
+    # 1. Try Official NASDAQ API
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status() 
-        
-        # FIXED: Wrapped in StringIO and removed the extra spaces around 'Ticker'
-        tables = pd.read_html(StringIO(response.text), match='Ticker')
-        return tables[0]['Ticker'].tolist()
-        
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching Wikipedia page: {e}")
-        return [] 
+        url = 'https://api.nasdaq.com/api/quote/list-type/nasdaq100'
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            json_data = response.json()
+            rows = json_data.get('data', {}).get('data', {}).get('rows', [])
+            tickers = [row['symbol'].strip().replace('.', '-') for row in rows if 'symbol' in row and row['symbol']]
+            if len(tickers) > 90:
+                print(f"Successfully fetched {len(tickers)} tickers from Nasdaq API.")
+                return tickers
+    except Exception as e:
+        print(f"Nasdaq API fetch attempt failed: {e}")
+
+    # 2. Try Wikipedia Scraping (Resilient Table Parsing)
+    wiki_urls = [
+        'https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies',
+        'https://en.wikipedia.org/wiki/Nasdaq-100'
+    ]
+    for url in wiki_urls:
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                # Removed 'match' entirely so Pandas won't crash if columns change
+                tables = pd.read_html(StringIO(response.text))
+                for df in tables:
+                    for col in df.columns:
+                        if str(col).strip().lower() in ['ticker', 'ticker symbol', 'symbol']:
+                            tickers = df[col].dropna().astype(str).str.strip().str.replace('.', '-').tolist()
+                            if len(tickers) > 90:
+                                print(f"Successfully fetched {len(tickers)} tickers from Wikipedia ({url}).")
+                                return tickers
+        except Exception as e:
+            print(f"Wikipedia fetch attempt from {url} failed: {e}")
+
+    # 3. Complete 101-Company Fallback Ticker List
+    print("Scraping failed or was blocked. Using complete fallback NASDAQ-100 ticker list.")
+    return [
+        'AAPL', 'ABNB', 'ADBE', 'ADI', 'ADP', 'ADSK', 'AEP', 'ALAB', 'ALNY', 'AMAT', 
+        'AMD', 'AMGN', 'AMZN', 'APP', 'ARM', 'ASML', 'AVGO', 'AXON', 'BKNG', 'BKR', 
+        'CCEP', 'CDNS', 'CEG', 'CMCSA', 'COST', 'CPRT', 'CRWD', 'CRWV', 'CSCO', 'CSX', 
+        'CTAS', 'DASH', 'DDOG', 'DXCM', 'EXC', 'FANG', 'FAST', 'FER', 'FTNT', 'GEHC', 
+        'GILD', 'GOOG', 'GOOGL', 'HON', 'HONA', 'IDXX', 'INTC', 'INTU', 'ISRG', 'KDP', 
+        'KHC', 'KLAC', 'LIN', 'LITE', 'LRCX', 'MAR', 'MCHP', 'MDLZ', 'MELI', 'META', 
+        'MNST', 'MPWR', 'MRVL', 'MSFT', 'MSTR', 'MU', 'NBIS', 'NFLX', 'NVDA', 'NXPI', 
+        'ODFL', 'ORLY', 'PANW', 'PAYX', 'PCAR', 'PDD', 'PEP', 'PLTR', 'PYPL', 'QCOM', 
+        'REGN', 'RKLB', 'ROP', 'ROST', 'SBUX', 'SHOP', 'SNPS', 'STX', 'TER', 'TMUS', 
+        'TRI', 'TSLA', 'TTWO', 'TXN', 'VRTX', 'WBD', 'WDAY', 'WDC', 'WMT', 'XEL'
+    ]
 
 def find_3_candle_reversals(df):
     signals = []
@@ -105,7 +144,7 @@ if not tickers:
 
 cutoff_date = pd.Timestamp.now().normalize() - pd.Timedelta(days=56)
 results = []
-data = yfinance = yf.download(tickers, period="6mo", group_by="ticker", auto_adjust=False, threads=True)
+data = yf.download(tickers, period="6mo", group_by="ticker", auto_adjust=False, threads=True)
 
 for ticker in tickers:
     try:
@@ -162,7 +201,6 @@ for ticker in tickers:
 
 results_df = pd.DataFrame(results)
 if not results_df.empty:
-    # FIXED: Removed extra spaces around 'Ticker' here as well
     results_df = results_df.sort_values(by=['Date', 'Ticker'], ascending=[False, True]).reset_index(drop=True)
 
 # Print to console (for Action logs) and send email
