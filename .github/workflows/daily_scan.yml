@@ -23,8 +23,7 @@ jobs:
           python-version: '3.10'
           
       - name: Install dependencies
-        run: pip install -r requirements.txt
-                
+        run: pip install -r requirements.txt                
       - name: Run Market Scan Script
         env:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
