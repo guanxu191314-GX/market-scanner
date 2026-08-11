@@ -24,8 +24,7 @@ jobs:
           
       - name: Install dependencies
         run: pip install -r requirements.txt
-        run: pip install pandas yfinance requests html5lib lxml
-        
+                
       - name: Run Market Scan Script
         env:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
