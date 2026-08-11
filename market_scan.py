@@ -12,7 +12,7 @@ SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD") # Must be an App Password
 RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL")
 
 def get_ndx_tickers():
-    url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
+    url = 'https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36'
     }
