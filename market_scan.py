@@ -158,7 +158,7 @@ for ticker in tickers:
 
 results_df = pd.DataFrame(results)
 if not results_df.empty:
-    results_df = results_df.sort_values(by=['Date', 'Ticker'], ascending=[False, True]).reset_index(drop=True)
+    results_df = results_df.sort_values(by=['Date', ' Ticker '], ascending=[False, True]).reset_index(drop=True)
 
 # Print to console (for Action logs) and send email
 print(results_df)
