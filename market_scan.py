@@ -19,7 +19,7 @@ def get_ndx_tickers():
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status() 
-        tables = pd.read_html(response.text, match='Ticker')
+        tables = pd.read_html(response.text, match=' Ticker ')
         return tables[0]['Ticker'].tolist()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching Wikipedia page: {e}")
