@@ -71,9 +71,10 @@ def send_email(df_results):
         # Create a copy so we don't format the raw data with HTML tags in the console
         df_email = df_results.copy()
         
-        # Transform the Ticker column into clickable TradingView links
+        # --- FIXED URL GENERATION ---
+        # Simplified HTML Anchor Tag to prevent Email clients from stripping it out
         df_email['Ticker'] = df_email['Ticker'].apply(
-            lambda t: f'<a href="https://www.tradingview.com/chart/?symbol={t}" target="_blank" style="color: #1a73e8; text-decoration: none; font-weight: bold;">{t}</a>'
+            lambda t: f'<a href="https://www.tradingview.com/symbols/{str(t).strip()}/">{str(t).strip()}</a>'
         )
 
         # MUST USE escape=False to render the HTML anchor tags properly
@@ -104,7 +105,7 @@ def send_email(df_results):
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
         server.quit()
-        print("Email sent successfully!")
+        print("Email sent successfully with clickable links!")
     except Exception as e:
         print(f"Failed to send email: {e}")
 
