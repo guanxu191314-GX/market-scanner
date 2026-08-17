@@ -68,7 +68,16 @@ def send_email(df_results):
     if df_results.empty:
         html_content = "<h3>No matching setups found this week.</h3>"
     else:
-        html_table = df_results.to_html(index=False, border=1, justify="center")
+        # Create a copy so we don't format the raw data with HTML tags in the console
+        df_email = df_results.copy()
+        
+        # Simplified HTML Anchor Tag to prevent Email clients from stripping it out
+        df_email['Ticker'] = df_email['Ticker'].apply(
+            lambda t: f'<a href="https://www.tradingview.com/symbols/{str(t).strip()}/">{str(t).strip()}</a>'
+        )
+
+        # MUST USE escape=False to render the HTML anchor tags properly
+        html_table = df_email.to_html(index=False, border=1, justify="center", escape=False)
         
         # Inject CSS Colors into the HTML string for the email
         html_table = html_table.replace('Continuation (Bullish)', '<span style="color: green; font-weight: bold;">Continuation (Bullish)</span>')
@@ -95,7 +104,7 @@ def send_email(df_results):
         server.login(SENDER_EMAIL, SENDER_PASSWORD)
         server.send_message(msg)
         server.quit()
-        print("Email sent successfully!")
+        print("Email sent successfully with clickable links!")
     except Exception as e:
         print(f"Failed to send email: {e}")
 
@@ -109,7 +118,7 @@ if not tickers:
 cutoff_date = pd.Timestamp.now().normalize() - pd.Timedelta(days=56) # 8 Weeks lookback cutoff
 results = []
 
-# UPDATED: period="5y" (to ensure we have 60 weeks of data) and interval="1wk" for weekly candles
+# period="5y" (to ensure we have 60 weeks of data) and interval="1wk" for weekly candles
 data = yf.download(tickers, period="5y", interval="1wk", group_by="ticker", auto_adjust=False, threads=True)
 
 for ticker in tickers:
