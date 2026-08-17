@@ -24,7 +24,7 @@ jobs:
           
       - name: Install dependencies
         run: pip install -r requirements.txt                
-      - name: Run Weekly_market_Scan
+      - name: Run Weekly_market_Scan.py
         env:
           SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
           SENDER_PASSWORD: ${{ secrets.SENDER_PASSWORD }}
