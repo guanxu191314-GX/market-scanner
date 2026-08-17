@@ -12,25 +12,60 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL")
 SENDER_PASSWORD = os.environ.get("SENDER_PASSWORD") # Must be an App Password
 RECEIVER_EMAIL = os.environ.get("RECEIVER_EMAIL")
 
-def get_sp500_tickers():
-    url = 'https://en.wikipedia.org/wiki/List_of_S%26P_500_companies'
+def get_ndx_tickers():
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*'
     }
+
+    # 1. Try Official NASDAQ API
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status() 
-        
-        # Wrapped in StringIO to prevent Pandas future warnings
-        tables = pd.read_html(StringIO(response.text), match='Symbol')
-        tickers = tables[0]['Symbol'].tolist()
-        
-        # Clean tickers for yfinance (e.g., BRK.B -> BRK-B)
-        tickers = [str(ticker).replace('.', '-') for ticker in tickers]
-        return tickers
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching Wikipedia page: {e}")
-        return [] 
+        url = 'https://api.nasdaq.com/api/quote/list-type/nasdaq100'
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            json_data = response.json()
+            rows = json_data.get('data', {}).get('data', {}).get('rows', [])
+            tickers = [row['symbol'].strip().replace('.', '-') for row in rows if 'symbol' in row and row['symbol']]
+            if len(tickers) > 90:
+                print(f"Successfully fetched {len(tickers)} tickers from Nasdaq API.")
+                return tickers
+    except Exception as e:
+        print(f"Nasdaq API fetch attempt failed: {e}")
+
+    # 2. Try Wikipedia Scraping (Resilient Table Parsing)
+    wiki_urls = [
+        'https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies',
+        'https://en.wikipedia.org/wiki/Nasdaq-100'
+    ]
+    for url in wiki_urls:
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                tables = pd.read_html(StringIO(response.text))
+                for df in tables:
+                    for col in df.columns:
+                        if str(col).strip().lower() in ['ticker', 'ticker symbol', 'symbol']:
+                            tickers = df[col].dropna().astype(str).str.strip().str.replace('.', '-').tolist()
+                            if len(tickers) > 90:
+                                print(f"Successfully fetched {len(tickers)} tickers from Wikipedia ({url}).")
+                                return tickers
+        except Exception as e:
+            print(f"Wikipedia fetch attempt from {url} failed: {e}")
+
+    # 3. Complete 101-Company Fallback Ticker List
+    print("Scraping failed or was blocked. Using complete fallback NASDAQ-100 ticker list.")
+    return [
+        'AAPL', 'ABNB', 'ADBE', 'ADI', 'ADP', 'ADSK', 'AEP', 'ALAB', 'ALNY', 'AMAT', 
+        'AMD', 'AMGN', 'AMZN', 'APP', 'ARM', 'ASML', 'AVGO', 'AXON', 'BKNG', 'BKR', 
+        'CCEP', 'CDNS', 'CEG', 'CMCSA', 'COST', 'CPRT', 'CRWD', 'CRWV', 'CSCO', 'CSX', 
+        'CTAS', 'DASH', 'DDOG', 'DXCM', 'EXC', 'FANG', 'FAST', 'FER', 'FTNT', 'GEHC', 
+        'GILD', 'GOOG', 'GOOGL', 'HON', 'HONA', 'IDXX', 'INTC', 'INTU', 'ISRG', 'KDP', 
+        'KHC', 'KLAC', 'LIN', 'LITE', 'LRCX', 'MAR', 'MCHP', 'MDLZ', 'MELI', 'META', 
+        'MNST', 'MPWR', 'MRVL', 'MSFT', 'MSTR', 'MU', 'NBIS', 'NFLX', 'NVDA', 'NXPI', 
+        'ODFL', 'ORLY', 'PANW', 'PAYX', 'PCAR', 'PDD', 'PEP', 'PLTR', 'PYPL', 'QCOM', 
+        'REGN', 'RKLB', 'ROP', 'ROST', 'SBUX', 'SHOP', 'SNPS', 'STX', 'TER', 'TMUS', 
+        'TRI', 'TSLA', 'TTWO', 'TXN', 'VRTX', 'WBD', 'WDAY', 'WDC', 'WMT', 'XEL'
+    ]
 
 def find_3_candle_reversals(df):
     signals = []
@@ -63,7 +98,7 @@ def send_email(df_results):
     msg = MIMEMultipart()
     msg['From'] = SENDER_EMAIL
     msg['To'] = RECEIVER_EMAIL
-    msg['Subject'] = "Weekly S&P 500 Reversal Pattern Scan"
+    msg['Subject'] = "Weekly Nasdaq 100 Reversal Pattern Scan"
 
     if df_results.empty:
         html_content = "<h3>No matching setups found this week.</h3>"
@@ -79,7 +114,7 @@ def send_email(df_results):
 
         # MUST USE escape=False to render the HTML anchor tags properly
         html_table = df_email.to_html(index=False, border=1, justify="center", escape=False)
-        
+
         # Inject CSS Colors into the HTML string for the email
         html_table = html_table.replace('Continuation (Bullish)', '<span style="color: green; font-weight: bold;">Continuation (Bullish)</span>')
         html_table = html_table.replace('Bottom (Reversal)', '<span style="color: green; font-weight: bold;">Bottom (Reversal)</span>')
@@ -90,7 +125,7 @@ def send_email(df_results):
         <html>
           <head></head>
           <body>
-            <h3>S&P 500 - 3-Candle Pivot Reversals (Weekly)</h3>
+            <h3>Weekly Nasdaq 100 - 3-Candle Pivot Reversals</h3>
             <p><strong>Criteria:</strong> Weekly charts. Filtered by 5-Week SMA momentum. Context applied via 60-Week SMA.</p>
             {html_table}
           </body>
@@ -110,16 +145,17 @@ def send_email(df_results):
         print(f"Failed to send email: {e}")
 
 # --- Main Execution ---
-print("Fetching S&P 500 tickers...")
-tickers = get_sp500_tickers()
+print("Fetching tickers...")
+tickers = get_ndx_tickers()
 if not tickers:
     print("No tickers found. Exiting.")
     exit()
 
-cutoff_date = pd.Timestamp.now().normalize() - pd.Timedelta(days=56) # 8 Weeks lookback cutoff
+# Cutoff remains 56 days (8 weeks) to catch recent weekly triggers
+cutoff_date = pd.Timestamp.now().normalize() - pd.Timedelta(days=56)
 results = []
 
-# period="5y" (to ensure we have 60 weeks of data) and interval="1wk" for weekly candles
+# UPDATED: period="5y" (to ensure we have 60 weeks of data) and interval="1wk" for weekly candles
 data = yf.download(tickers, period="5y", interval="1wk", group_by="ticker", auto_adjust=False, threads=True)
 
 for ticker in tickers:
@@ -128,11 +164,11 @@ for ticker in tickers:
             df = data[ticker].copy().dropna()
         else:
             continue
-            
+
         # Require 60 weeks of data to calculate the MA60
         if len(df) < 60:
             continue
-            
+
         df['SMA_5'] = df['Close'].rolling(window=5).mean()
         df['SMA_60'] = df['Close'].rolling(window=60).mean()
         last_close = df['Close'].iloc[-1]
@@ -142,10 +178,10 @@ for ticker in tickers:
         stock_signals = find_3_candle_reversals(df)
         if stock_signals:
             last_sig = stock_signals[-1] 
-            
+
             if last_sig['Date'] >= cutoff_date:
                 is_bullish = 'Bottom' in last_sig['Signal']
-                
+
                 # Directional 5 SMA filter
                 if is_bullish and last_close <= last_sma5:
                     continue 
